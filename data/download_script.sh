@@ -10,7 +10,7 @@ if [ ! -f "$URLS_FILE" ]; then
 fi
 
 echo "==> Downloading datasets..."
-wget -nc -q --show-progress -i "$URLS_FILE"
+tr -d '\r' < "$URLS_FILE" | wget -nc -q --show-progress -i -
 
 echo "==> Extracting Hypersim scenes..."
 mkdir -p hypersim
