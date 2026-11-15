@@ -1,0 +1,3 @@
+https://docs-assets.developer.apple.com/ml-research/datasets/hypersim/v1/scenes/ai_001_001.zip
+https://docs-assets.developer.apple.com/ml-research/datasets/hypersim/v1/scenes/ai_002_001.zip
+http://storage.googleapis.com/gresearch/refraw360/360_v2.zip
