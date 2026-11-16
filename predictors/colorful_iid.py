@@ -1,0 +1,1 @@
+# TODO: write function for processing the image sets with the predictor and get normalised predicted values
