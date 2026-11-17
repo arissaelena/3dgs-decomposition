@@ -4,7 +4,7 @@ from PIL import Image
 import torch
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
-def get_depth_map(img_path: str)-> torch.Tensor:
+def get_depth_map(img_path: str) -> torch.Tensor:
     # img_path: str. path to image
     # returns predicted depth tensor
     # uses depth anything v2 via huggingface
