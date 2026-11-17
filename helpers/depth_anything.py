@@ -4,11 +4,13 @@ from PIL import Image
 import torch
 from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
-def get_depth_map(img_path: str)-> Image:
+def get_depth_map(img_path: str)-> torch.Tensor:
+    # img_path: str. path to image
+    # returns predicted depth tensor
     # uses depth anything v2 via huggingface
 
     with open(img_path, "rb") as f:
-        img = Image.open(io.BytesIO(f.read()))
+        img = Image.open(io.BytesIO(f.read())).convert("RGB")
 
         image_processor = AutoImageProcessor.from_pretrained("depth-anything/Depth-Anything-V2-Small-hf")
         model = AutoModelForDepthEstimation.from_pretrained("depth-anything/Depth-Anything-V2-Small-hf", device_map="auto")
@@ -24,6 +26,6 @@ def get_depth_map(img_path: str)-> Image:
             target_sizes=[(img.height, img.width)],
         )
         
-        # convert float depths into colours to be displayed in an image
+        
         predicted_depth = post_processed_output[0]["predicted_depth"]
         return predicted_depth
