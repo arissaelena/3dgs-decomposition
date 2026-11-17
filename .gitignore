@@ -3,3 +3,4 @@ data/mipnerf360/
 data/*.zip
 intrinsic_env
 Intrinsic
+.venv
