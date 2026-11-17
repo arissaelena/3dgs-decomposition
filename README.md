@@ -6,12 +6,14 @@ For the Mip-NeRF set, there's the images, but also images_2, images_4, and image
 
 ## Running Colourful Diffuse IID Albedo Predictor
 
-You should create a fresh virtual environment (python3 -m venv intrinsic_env) and start it (source intrinsic_env/bin/activate)
+You should create a fresh virtual environment (`python3 -m venv intrinsic_env`) and start it (`source intrinsic_env/bin/activate`)
 
-You can install this repository as a package using pip:
+You can install the repository as a package using pip:
 
+```
 git clone https://github.com/compphoto/Intrinsic
 cd Intrinsic
 pip install .
+```
 
 This will allow you to import the repository as a Python package, and use the pipeline as part of our codebase.
