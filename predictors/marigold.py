@@ -17,7 +17,6 @@ def marigold_predict(image_paths: list[str]) -> tuple[list[np.ndarray], list[np.
     for path in image_paths:
         image = diffusers.utils.load_image(path)
         intrinsics = mi_pipeline(image)
-        print("Has NaNs:", np.isnan(intrinsics.prediction).any())
 
         vis: list[dict[str, PIL.Image.Image]] = mi_pipeline.image_processor.visualize_intrinsics(intrinsics.prediction, mi_pipeline.target_properties)
 
