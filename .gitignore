@@ -1,6 +1,12 @@
 data/hypersim/
 data/mipnerf360/
 data/*.zip
+**/__pycache__/
+.tmp.drivedownload
+.tmp.driveupload
 intrinsic_env
 Intrinsic
 .venv
+data/desktop.ini
+helpers/desktop.ini
+predictors/desktop.ini
