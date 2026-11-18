@@ -6,6 +6,7 @@
 ## Pipeline
 
 // add description of the stages in our pipeline //
+1. Fetch data and run albedo predictors
 
 ## Notes on Scene Data Chosen
 Will probably need to move this elsewhere and write a proper README later on but it's convenient to have any useful notes here for now. We'll be using 2 Hypersim scenes (I chose the first ones from volumes 1 and 2 as can be seen in the download script), and 2 outdoor (bicycle and garden) and 1 indoor (room) scenes from the Mip-NeRF 360 set.
