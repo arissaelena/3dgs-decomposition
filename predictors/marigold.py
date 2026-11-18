@@ -25,9 +25,4 @@ def marigold_predict(image_paths: list[str]) -> tuple[list[np.ndarray], list[np.
         residuals.append(np.array(vis[0]["residual"]))
     
 
-    # normalise to [0,1] to use the same printing function as colourful iid
-    norm_albedos = [x.astype(np.float32) / 255.0 for x in albedos]
-    norm_ds = [x.astype(np.float32) / 255.0 for x in diffuse_shading]
-    norm_residuals = [x.astype(np.float32) / 255.0 for x in residuals]
-
-    return norm_albedos, norm_ds, norm_residuals
+    return albedos, diffuse_shading, residuals
