@@ -1,7 +1,32 @@
 # Intrinsic Decomposition of 3D Gaussian Splats with Imperfect 2D Priors
 ## Repository Structure
 
-// explain repo structure //
+Our repository is structured as follows:
+```
+3dgs_decomposition/
+├── data/                     # (gitignored) hypersim/ & mipnerf360/
+│   ├── data_urls.txt         # urls for fetching scene zips
+│   ├── download_script.sh    # bash script for downloading zips and extracting data
+│   └── get_data.py           # script to get a list of image paths for a dataset and scene
+├── eval/                     # metrics, cross-view reprojection, recolouring
+│   ├── hypersim_metrics.py   # PSNR, SI-MSE (scale-invariant) vs hypersim ground truth
+│   ├── reprojection.py       # depth-warped cross-view albedo variance
+│   └── recolor_scene.py      # scene recoloring script for mipnerf360 scenes
+├── fusion/                   # extensions - multi-view consistency methods
+│   ├── color_correction.py   # (a) per-view affine/scale color shift
+│   ├── down_weight.py        # (b) pixel down-weighting via reprojection variance
+│   └── gaussian_average.py   # (c) 3D gaussian weighted average target
+├── predictors/               # 2D prior generation
+│   ├── colourful_iid.py      # colourful iid (paper [4])
+│   ├── depth_anything.py     # depth anything V2
+│   ├── diffusion_renderer.py # diffusion renderer video model (paper [7])
+│   ├── marigold_iid.py       # marigold (paper [6])
+│   └── xrgb.py               # rgbx (paper [5])
+├── splat/                    # 3-layer gsplat / 3DGS model
+│   ├── model.py              # Albedo, Shading, Residual Gaussian sets
+│   └── train_baseline.py     # training: albedo -> freeze -> shading -> residual
+└── pipeline.ipynb            # colab notebook for running everything together
+```
 
 ## Pipeline
 

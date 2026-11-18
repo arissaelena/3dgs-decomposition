@@ -1,0 +1,1 @@
+# constrain each gaussian’s albedo to a weighted average of its per-view predictions

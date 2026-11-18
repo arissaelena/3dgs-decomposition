@@ -1,0 +1,1 @@
+# down-weight pixels where predictions disagree across views
