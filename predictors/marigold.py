@@ -7,7 +7,7 @@ from PIL import Image
 
 def marigold_predict(image_paths: list[str]) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
     mi_pipeline = diffusers.MarigoldIntrinsicsPipeline.from_pretrained(
-        "prs-eth/marigold-iid-lighting-v1-1", variant="fp16", torch_dtype=torch.bfloat16
+        "prs-eth/marigold-iid-lighting-v1-1", variant="fp16", dtype=torch.bfloat16
         ).to("cuda")
     
     albedos: list[np.ndrray[np.uint8]] = []
