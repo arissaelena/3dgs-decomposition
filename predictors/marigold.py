@@ -7,7 +7,7 @@ from PIL import Image
 
 def marigold_predict(image_paths: list[str]) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
     mi_pipeline = diffusers.MarigoldIntrinsicsPipeline.from_pretrained(
-        "prs-eth/marigold-iid-lighting-v1-1", variant="fp16", torch_dtype=torch.float16
+        "prs-eth/marigold-iid-lighting-v1-1", variant="fp16", torch_dtype=torch.bfloat16
         ).to("cuda")
     
     albedos = []
@@ -16,7 +16,8 @@ def marigold_predict(image_paths: list[str]) -> tuple[list[np.ndarray], list[np.
 
     for path in image_paths:
         image = diffusers.utils.load_image(path)
-        intrinsics = mi_pipeline(image, processing_resolution=512)
+        intrinsics = mi_pipeline(image)
+        print("Has NaNs:", np.isnan(intrinsics.prediction).any())
 
         vis: list[dict[str, PIL.Image.Image]] = mi_pipeline.image_processor.visualize_intrinsics(intrinsics.prediction, mi_pipeline.target_properties)
 
