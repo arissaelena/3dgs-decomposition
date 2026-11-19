@@ -1,4 +1,7 @@
+# function for processing the image sets with the rgbx predictor
+
 import os
+import cv2
 import sys
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"   # must be set before cv2 is imported
 
@@ -8,11 +11,10 @@ from diffusers import DDIMScheduler
 import numpy as np
 
 here = os.getcwd()
-rgb2x_path = os.path.join(here, "rgbx", "rgb2x")  # TODO: change if rgb2x lives elsewhere
+rgb2x_path = os.path.join(here, "rgbx", "rgb2x")
 sys.path.append(rgb2x_path)
 
-from load_image import load_ldr_image
-from pipeline_rgb2x import StableDiffusionAOVMatEstPipeline
+from .pipeline_rgb2x import StableDiffusionAOVMatEstPipeline
 
 PROMPTS = {
     "albedo": "Albedo (diffuse basecolor)",
@@ -72,3 +74,21 @@ def rgbx_predict(image_paths: list[str], cache_dir: str) -> tuple[list[np.ndarra
     residuals.append(np.zeros_like(results["albedo"])) 
 
   return albedos, diffuse_shading, residuals
+
+# helper code from rgbx repo
+
+def load_ldr_image(image_path, from_srgb=False, clamp=False, normalize=False):
+    # Load png or jpg image
+    image = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)
+    image = torch.from_numpy(image.astype(np.float32) / 255.0)  # (h, w, c)
+    image[~torch.isfinite(image)] = 0
+    if from_srgb:
+        # Convert from sRGB to linear RGB
+        image = image**2.2
+    if clamp:
+        image = torch.clamp(image, min=0.0, max=1.0)
+    if normalize:
+        # Normalize to [-1, 1]
+        image = image * 2.0 - 1.0
+        image = torch.nn.functional.normalize(image, dim=-1, eps=1e-6)
+    return image.permute(2, 0, 1)  # returns (c, h, w)

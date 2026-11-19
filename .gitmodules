@@ -1,0 +1,3 @@
+[submodule "diffusion-renderer"]
+	path = diffusion-renderer
+	url = https://github.com/arissaelena/diffusion-renderer
