@@ -10,12 +10,12 @@ def get_depth_map(images: list[str]) -> list[torch.Tensor]:
     # returns predicted depth tensor
     # uses depth anything v2 via huggingface
     predicted_depths = []
+    image_processor = AutoImageProcessor.from_pretrained("depth-anything/Depth-Anything-V2-Small-hf")
+    model = AutoModelForDepthEstimation.from_pretrained("depth-anything/Depth-Anything-V2-Small-hf", device_map="auto")
+
     for img_path in images:
         with open(img_path, "rb") as f:
             img = Image.open(io.BytesIO(f.read())).convert("RGB")
-
-            image_processor = AutoImageProcessor.from_pretrained("depth-anything/Depth-Anything-V2-Small-hf")
-            model = AutoModelForDepthEstimation.from_pretrained("depth-anything/Depth-Anything-V2-Small-hf", device_map="auto")
 
             input = image_processor(images=img, return_tensors="pt").to(model.device)
 
