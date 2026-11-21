@@ -121,7 +121,7 @@ def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weig
 
     # for extension 2, if we warp predicted albedos via depth and calculate a confidence weight map based on 
     # when pixels disagree, we can use the weight map to down weight pixels where the views disagree
-    if weight_map:
+    if weight_map is not None:
         Ll1 = (torch.abs(image - gt_image) * weight_map).mean()
     else:
         Ll1 = l1_loss(image, gt_image)

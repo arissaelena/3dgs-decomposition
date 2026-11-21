@@ -20,11 +20,15 @@ def run_baseline_train(
         eval: bool=True,
         iterations: int=10_000,
 ):
-    pass
+    args = [sys.executable, os.path.join(repo_root, 'splat/train_baseline_copy.py'), '-s', source_path, '-m', output_dir, '-a', albedos_path, '--depths', depth_paths, '--images', images_folder, '--albedo_iterations', str(iterations), '--shading_iterations', str(iterations), '--residual_iterations', str(iterations)]
+    if eval:
+        args.append('--eval')
+    subprocess.run(args, check=True)
 
-def render_test_views():
-    pass
+def render_test_views(source_path: str, output_dir: str, iterations: int=10_000):
+    args = [sys.executable, os.path.join(intr_decomp_path, 'evaluate.py'), '-s', source_path, '-m', output_dir, '--iteration', str(iterations)]
+    subprocess.run(args, check=True)
 
 def align_depth_scale(scene_dir: str, depths_dir: str):
     args = [sys.executable, os.path.join(intr_decomp_path, 'scripts/make_depth_scale.py'), '--base_dir', scene_dir, '--depths_dir', depths_dir]
-    subprocess.run(args)
+    subprocess.run(args, check=True)
