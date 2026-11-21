@@ -3,4 +3,4 @@
 	url = https://github.com/arissaelena/diffusion-renderer
 [submodule "intr_decomp_3dgs"]
 	path = intr_decomp_3dgs
-	url = https://github.com/graphdeco-inria/intr_decomp_3dgs/
+	url = https://github.com/arissaelena/intr_decomp_3dgs/
