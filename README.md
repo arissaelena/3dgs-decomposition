@@ -20,16 +20,15 @@ Our repository is structured as follows:
 ├── intr_decomp_3dgs/               # baseline submodule
 ├── predictors/                     # 2D prior generation
 │   ├── rgbx/ 
-|   |   ├── load_image.py           # KRISTY
-|   │   ├── pipeline_rgb2x.py       # KRISTY
-|   │   └── rgbx.py                 # KRISTY
+|   |   ├── load_image.py           # rgbx repo image loading utilities
+|   │   ├── pipeline_rgb2x.py       # rgbx repo inference pipeline
+|   │   └── rgbx.py                 # rgbx (paper [5])
 │   ├── colourful_iid.py            # colourful iid (paper [4])
 │   ├── depth_anything.py           # depth anything V2
 │   ├── diffusion_renderer.py       # diffusion renderer video model (paper [7])
-│   ├── marigold.py                 # marigold (paper [6])
-│   └── rgbx.py                     # rgbx (paper [5])
+│   └── marigold.py                 # marigold (paper [6])
 ├── splat/                          # 3-layer gsplat / 3DGS model
-│   ├── fit_baseline_gsplat.ipynb   # [KRISTY TO FILL IN]
+│   ├── fit_baseline_gsplat.ipynb   # fitting albedo, freezing shading and residual sets with gsplat
 │   ├── fit_baseline.py             # wrapper for fiting albedo, freeze, then fit shading and residual sets
 │   └── train_baseline_copy.py      # training: albedo -> freeze -> shading -> residual from baseline repo
 ├── predictors.ipynb                # colab notebook for getting the albedo predictions
