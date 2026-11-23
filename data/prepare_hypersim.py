@@ -15,29 +15,21 @@ import csv
 import h5py
 from PIL import Image
 import struct
+import json
 
 # hypersim uses rotation matrices to store orientations / camera rotations, COLMAP uses quaternions
 def rotation_matrix_to_quaternion(rotation_matrix: np.ndarray) -> np.ndarray:
-    # 3 x 3 matrix to quaternion
-    # matrix looks like this a & b & c \\ d & e & f \\ g & h & i
     a, b, c, d, e, f, g, h, i = rotation_matrix.flat
-    # bar itzhacks method
-    # make 4 x 4 matrix called K
     k = np.array([
-        [a-e-i, d+b, g+c, f-h],
-        [d+b, e-a-i, h+f, g-c],
-        [g+c, h+f, i-a-e, b-d],
-        [f-h, g-c, b-d, a+e+i]
+        [a - e - i, d + b,     g + c,     h - f],
+        [d + b,     e - a - i, h + f,     c - g],
+        [g + c,     h + f,     i - a - e, d - b],
+        [h - f,     c - g,     d - b,     a + e + i],
     ]) / 3.0
-    # find largest eigenvalue and its unit eigenvector
     eigvals, eigvecs = np.linalg.eigh(k)
-    leigvec = eigvecs[np.argmax(eigvals)]
-    # have to reorder because colmap uses different order w, x, y, z
+    leigvec = eigvecs[:, np.argmax(eigvals)]  
     quaternion = np.array([leigvec[3], leigvec[0], leigvec[1], leigvec[2]])
-    if quaternion[0] < 0:
-        return -quaternion
-    else:
-        return quaternion
+    return -quaternion if quaternion[0] < 0 else quaternion
 
 
 # get the meters per asset conversion from _detail/metadata_scene.csb
@@ -214,6 +206,8 @@ def write_comlap_bins(sparse_dir: str, w: int, h: int, intrinsics: tuple[float, 
         f.write(records.tobytes())
 
 
+import json
+
 def convert_trajectory(scene_dir: str, cam_name: str, out_dir: str, point_stride: int = 16, max_points: int = 200_000) -> int:
     # one trajectory to colmap mipnerf format
     scale = get_scale(scene_dir)
@@ -225,7 +219,7 @@ def convert_trajectory(scene_dir: str, cam_name: str, out_dir: str, point_stride
     if not img_names:
         raise FileNotFoundError(f"no tonemap.jpg frames in {preview_dir}")
 
-    for sub in ("images", "sparse/0", "ground_truth/depth_z", "ground_truth/normals_cv"):
+    for sub in ("images", "depths", "sparse/0", "ground_truth/depth_z", "ground_truth/normals_cv"):
         os.makedirs(os.path.join(out_dir, sub), exist_ok=True)
 
     with Image.open(os.path.join(preview_dir, img_names[0])) as img:
@@ -234,7 +228,7 @@ def convert_trajectory(scene_dir: str, cam_name: str, out_dir: str, point_stride
     intrinsics = get_intrinsics(scene_dir, cam_name, w, h)
     fx, fy, cx, cy = intrinsics
     focal = 0.5 * (fx + fy)
-    images_meta, frame_names = [], []
+    images_meta, frame_names, depth_frame_names = [], [], []
     c2w_list, bounds_rows = [], []
     all_pts, all_cols = [], []
 
@@ -272,6 +266,11 @@ def convert_trajectory(scene_dir: str, cam_name: str, out_dir: str, point_stride
                 z_depth = ray_depth_to_planar_z(f["dataset"][:], fx, fy, cx, cy)
             np.save(os.path.join(out_dir, "ground_truth", "depth_z", f"frame_{frame_str}.npy"), z_depth)
 
+            z_clean = np.nan_to_num(z_depth, nan=0.0, posinf=0.0, neginf=0.0)
+            depth_mm = np.clip(z_clean * 1000.0, 0, 65535).astype(np.uint16)
+            Image.fromarray(depth_mm).save(os.path.join(out_dir, "depths", f"frame_{frame_str}.png"))
+            depth_frame_names.append(out_name)
+
             valid_z = z_depth[np.isfinite(z_depth) & (z_depth > 0.05)]
             if len(valid_z) > 0:
                 near = float(np.percentile(valid_z, 0.1)) * 0.9
@@ -297,7 +296,15 @@ def convert_trajectory(scene_dir: str, cam_name: str, out_dir: str, point_stride
         keep = np.random.default_rng(42).choice(len(pts), max_points, replace=False)
         pts, cols = pts[keep], cols[keep]
 
-    write_comlap_bins(os.path.join(out_dir, "sparse", "0"), w, h, intrinsics, images_meta, pts, cols)
+    sparse_dir = os.path.join(out_dir, "sparse", "0")
+    write_comlap_bins(sparse_dir, w, h, intrinsics, images_meta, pts, cols)
+
+    depth_params = {
+        os.path.splitext(name)[0]: {"scale": 0.001, "offset": 0.0}
+        for name in depth_frame_names
+    }
+    with open(os.path.join(sparse_dir, "depth_params.json"), "w") as f:
+        json.dump(depth_params, f, indent=2)
 
     poses_bounds = np.stack(bounds_rows) if bounds_rows else np.empty((0, 17), dtype=np.float64)
     np.save(os.path.join(out_dir, "poses_bounds.npy"), poses_bounds)
