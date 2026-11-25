@@ -3,3 +3,4 @@ data/mipnerf360/
 data/*.zip
 **/__pycache__/
 .venv
+.vscode

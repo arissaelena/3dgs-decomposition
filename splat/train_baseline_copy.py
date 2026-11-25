@@ -497,6 +497,11 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
     parser.add_argument("--enable_viewer", action="store_true")
+    # enable extensions
+    parser.add_argument("--use_color_correction", action="store_true")
+    parser.add_argument("--use_down_weight", action="store_true")
+    parser.add_argument("--use_gaussian_average", action="store_true")
+    # may need to add other hyperparameters if needed for any extensions
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.albedo_iterations)
     
