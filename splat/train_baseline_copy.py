@@ -336,7 +336,7 @@ def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : 
                 gaussians_list[active_id].optimizer.zero_grad(set_to_none = True)
 
 
-def training(dataset : ModelParams, opt : OptimizationParams, pipe : PipelineParams, testing_iterations: list[int], saving_iterations : list[int], enable_viewer : bool = False, out_folder : str = None, albedo_checkpoint : str = ""):
+def training(dataset : ModelParams, opt : OptimizationParams, pipe : PipelineParams, testing_iterations: list[int], saving_iterations : list[int], enable_viewer : bool = False, out_folder : str = None, albedo_checkpoint : str = "", colour_correction : bool = False, down_weight : bool = False, gaussian_average : bool = False):
     tb_writer = prepare_output_and_logger(dataset)
 
     albedo_gaussians = GaussianModel(0)
@@ -511,7 +511,7 @@ if __name__ == "__main__":
     safe_state(args.quiet)
 
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.enable_viewer, out_folder = args.out_folder, albedo_checkpoint = args.albedo_checkpoint)
+    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.enable_viewer, out_folder = args.out_folder, albedo_checkpoint = args.albedo_checkpoint, colour_correction=args.use_color_correction, down_weight=args.use_down_weight, gaussian_average=args.use_gaussian_average)
 
     # All done
     print("\nTraining complete.")

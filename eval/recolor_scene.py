@@ -23,7 +23,7 @@ class Dummy(object):
     pass
 
 # experiment_folder is the path to the scene in the baseline_train folder (the trained splats for our datasets)
-def create_recoloring_demo(model_path: str, source_path: str, iteration, background, experiment_folder, mode, run_name: str='test', ext: str='.png'):
+def create_recoloring_demo(model_path: str, source_path: str, albedo_dir: str, depths_dir: str, iteration, background, experiment_folder, mode, run_name: str='test', ext: str='.png', images_dir: str='images'):
     render_path = os.path.join(model_path, experiment_folder, run_name, "ours_{}".format(iteration), "full", "renders")
     gts_path = os.path.join(model_path, experiment_folder, run_name, "ours_{}".format(iteration), "full", "gt")
 
@@ -53,11 +53,11 @@ def create_recoloring_demo(model_path: str, source_path: str, iteration, backgro
 
     convert_images_to_linear = ext == ".png"
 
-    dataset_reader = get_dataset_reader(source_path, images_dir="images", depths_dir=None, eval=True, llffhold=8, convert_images_to_linear=convert_images_to_linear)
+    dataset_reader = get_dataset_reader(source_path, images_dir=images_dir, albedo_dir='', depths_dir='', eval=True, llffhold=8, convert_images_to_linear=convert_images_to_linear)
     scene_info = dataset_reader.read()
 
     views = scene_info.test_cameras
-    gt_source_dir = os.path.join(source_path, "images")
+    gt_source_dir = os.path.join(source_path, images_dir)
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
         rend_albedo = render(view, albedo_gaussians, pipe, background, colors_activation=True)["render"]
@@ -66,17 +66,20 @@ def create_recoloring_demo(model_path: str, source_path: str, iteration, backgro
 
         rendering = (rend_albedo * rend_shading) + rend_residual
 
+        gt_files = os.listdir(gt_source_dir) if os.path.isdir(gt_source_dir) else []
+        gt_ext = os.path.splitext(gt_files[0])[1] if gt_files else ext
+
         # gt = view.original_image[0:3, :, :] 
-        gt_source_path = os.path.join(gt_source_dir, view.image_name + ext)
-        render_out_path = os.path.join(render_path, '{0:05d}'.format(idx) + ext)
+        gt_source_path = os.path.join(gt_source_dir, view.image_name + gt_ext)
+        render_out_path = os.path.join(render_path, '{0:05d}'.format(idx) + gt_ext)
         
-        rendering = rendering.detach().permute(1, 2, 0).cpu().numpy()
-        if ext == ".png":
-            rendering = (rendering * 255.0).astype(np.uint8)
+        rendering = rendering.detach().permute(1, 2, 0).clamp(0.0, 1.0).cpu().numpy()
+        rendering = (rendering * 255.0).astype(np.uint8)
 
         cv2.imwrite(render_out_path, rendering[:, :, ::-1]) # cv2 BGR convention but our rendering is in RGB
 
-        copy(gt_source_path, os.path.join(gts_path, '{0:05d}'.format(idx) + ext))
+        if os.path.exists(gt_source_path):
+            copy(gt_source_path, os.path.join(gts_path, '{0:05d}'.format(idx) + gt_ext))
         # torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ext))
     
 def apply_recoloring(albedo_gaussians, mode): # mode = ("colour_shift", (initial, final)) | ("hue_shift", shift_amount)
@@ -88,8 +91,11 @@ def apply_recoloring(albedo_gaussians, mode): # mode = ("colour_shift", (initial
         end_val_r, end_val_g, end_val_b = min(1.0, (initial[0] + 40) / 255), min(1.0, (initial[1] + 40) / 255), min(1.0, (initial[2] + 40) / 255)
         mask = (rgb[:, 0, 0] > start_val_r) & (rgb[:, 0, 0] < end_val_r) & (rgb[:, 0, 1] > start_val_g) & (rgb[:, 0, 1] < end_val_g) & (rgb[:, 0, 2] > start_val_b) & (rgb[:, 0, 2] < end_val_b)
 
-        target_r, target_g, target_b = final[0] / 255, final[1] / 255, final[2] / 255
-        new_rgb[mask, 0, :] = torch.tensor([target_r, target_g, target_b], device=rgb.device)
+        target_r, target_g, target_b = (final[0] / 255), (final[1] / 255), (final[2] / 255)
+        if mask.any():
+            new_rgb[mask, 0, :] = rgb[mask, 0, :] * (torch.tensor([target_r, target_g, target_b], device=rgb.device) / rgb[mask, 0, :].mean(dim=0).clamp(min=1e-4))
+        else:
+            new_rgb = rgb
     else:
         shift_amount = mode[1]
         rgb_np = rgb[:, 0, :].detach().cpu().numpy()
