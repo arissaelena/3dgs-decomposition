@@ -5,3 +5,8 @@ requests
 accelerate
 diffusers
 lpips
+opencv-python
+joblib
+plyfile
+glfw
+imgui_bundle
