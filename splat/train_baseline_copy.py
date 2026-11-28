@@ -51,6 +51,9 @@ except ImportError:
 
 from fused_ssim import fused_ssim
 
+# EXTENSION 2 
+import fusion.down_weight as e2
+
 class Layer(Enum):
     albedo = 0
     shading = 1
@@ -112,7 +115,8 @@ def init_residual(albedo_gaussians : GaussianModel, shading_gaussians : Gaussian
 
     return residual_gaussians
 
-def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weight : float, pipe : PipelineParams, background : torch.Tensor, lambda_dssim : float, clamp_albedo : bool = True, weight_map=None, gaussian_average=False, target_albedo=None):
+
+def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weight : float, pipe : PipelineParams, background : torch.Tensor, lambda_dssim : float, clamp_albedo : bool = True, use_weight_map: bool = False, gaussian_average=False, target_albedo=None):
     render_pkg = render(viewpoint, albedo_gaussians, pipe, background)
     image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
@@ -122,7 +126,9 @@ def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weig
 
     # for extension 2, if we warp predicted albedos via depth and calculate a confidence weight map based on 
     # when pixels disagree, we can use the weight map to down weight pixels where the views disagree
-    if weight_map is not None:
+
+    if use_weight_map:
+        weight_map = e2.generate_confidence_maps(viewpoint)
         Ll1 = (torch.abs(image - gt_image) * weight_map).mean()
     else:
         Ll1 = l1_loss(image, gt_image)
