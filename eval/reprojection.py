@@ -65,31 +65,55 @@ def reproject_view(cam_src: dict, cam_tgt: dict, depth_src: np.ndarray, depth_tg
     return warped_albedo, M
 
 
-def covisible_pairs(root: str, dataset: str, scene: str, cams: list[dict], predictor: str, change: list[int] = [2, 8], min_overlap: float = 0.1, use_gt_depth: bool = False, thresh: float = 0.12) -> dict[int, list[tuple[int, int]]]:
+def covisible_pairs(root: str, dataset: str, scene: str, cams: list[dict], predictor: str, change: list[int] = [2, 8], min_overlap: float = 0.1, use_gt_depth: bool = False, thresh: float = 0.12, scale: float = 0.25) -> dict[int, list[tuple[int, int]]]:
     depths = {}
+    small_cams = [scale_cam(c, scale) for c in cams]
     depth_fn = get_gt_depth_path if use_gt_depth else get_depth_path
 
-    for i, cam in enumerate(cams):
-        p = depth_fn(root, dataset, scene, cam, predictor)
-        if os.path.exists(p):
-            depths[i] = load_depth(p, (cam["h"], cam["w"]))
+    if not use_gt_depth:
+        occ_thresh = 0.15
+        edge_thresh = 0.30 * (1.0 / scale) ** 0.5 # adjust pixel step grad for downsampled grid
+    else:
+        occ_thresh = thresh
+        edge_thresh = thresh * (1.0 / scale) ** 0.5
             
-    pairs_by_diff = {}
-    for d in change:
-        pairs_by_diff[d] = []
-        for i in range(len(cams) - d):
-            j = i + d
-            if i in depths and j in depths:
-                h, w = depths[j].shape
-                dummy = np.zeros((h, w, 3), dtype=np.float32) # placeholder in right shape
-                if not use_gt_depth:
-                    occ_thresh = 0.15 
-                    edge_thresh = 0.30 
-                else:
-                    occ_thresh = thresh
-                    edge_thresh = thresh
-                _, mask = reproject_view(cams[i], cams[j], depths[i], depths[j], dummy, occ_thresh, edge_thresh)
-                if mask.mean() >= min_overlap:
-                    pairs_by_diff[d].append((i, j))
+    pairs_by_diff = {d: [] for d in change}
+    for i in range(len(cams)):
+        if i not in depths:
+            p = depth_fn(root, dataset, scene, cams[i], predictor)
+            if os.path.exists(p):
+                depths[i] = load_depth(p, (small_cams[i]["h"], small_cams[i]["w"]))
+        
+        if i in depths:
+            for d in change:
+                j = i + d
+                if j < len(cams):
+                    if j not in depths:
+                        p = depth_fn(root, dataset, scene, cams[j], predictor)
+                        if os.path.exists(p):
+                            depths[j] = load_depth(p, (small_cams[j]["h"], small_cams[j]["w"])) # downsampled size
+                    if j in depths:
+                        h, w = depths[j].shape
+                        dummy = np.zeros((h, w, 3), dtype=np.float32) # placeholder in right shape
+                    
+                        _, mask = reproject_view(small_cams[i], small_cams[j], depths[i], depths[j], dummy, occ_thresh, edge_thresh)
+                        if mask.mean() >= min_overlap:
+                            pairs_by_diff[d].append((i, j))
+        depths.pop(i, None)
 
     return pairs_by_diff
+
+
+def scale_cam(cam: dict, scale: float) -> dict:
+    sc = dict(cam)
+    sc["h"] = int(round(cam["h"] * scale))
+    sc["w"] = int(round(cam["w"] * scale))
+    if "K" in sc:
+        K = sc["K"].copy()
+        K[0, :] *= scale
+        K[1, :] *= scale
+        sc["K"] = K
+    for k in ["fc", "fy", "cx", "cy"]:
+        if k in sc:
+            sc[k] = sc[k] * scale
+    return sc
