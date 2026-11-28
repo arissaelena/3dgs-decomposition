@@ -116,7 +116,7 @@ def init_residual(albedo_gaussians : GaussianModel, shading_gaussians : Gaussian
     return residual_gaussians
 
 
-def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weight : float, pipe : PipelineParams, background : torch.Tensor, lambda_dssim : float, clamp_albedo : bool = True, use_weight_map: bool = False, gaussian_average=False, target_albedo=None):
+def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weight : float, pipe : PipelineParams, background : torch.Tensor, lambda_dssim : float, clamp_albedo : bool = True, use_weight_map: bool = False, gaussian_average=False, target_albedo=None, scene: Scene | None = None):
     render_pkg = render(viewpoint, albedo_gaussians, pipe, background)
     image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
@@ -127,11 +127,15 @@ def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weig
     # for extension 2, if we warp predicted albedos via depth and calculate a confidence weight map based on 
     # when pixels disagree, we can use the weight map to down weight pixels where the views disagree
 
-    if use_weight_map:
-        weight_map = e2.generate_confidence_maps(viewpoint)
+    if use_weight_map and scene:
+        weight_map = e2.generate_confidence_maps(viewpoint, scene)
         Ll1 = (torch.abs(image - gt_image) * weight_map).mean()
+    elif use_weight_map and not scene:
+        print("Pass scene to get a weight map")
+        Ll1 = l1_loss(image, gt_image)
     else:
         Ll1 = l1_loss(image, gt_image)
+
 
     ssim_value = fused_ssim(image.unsqueeze(0), gt_image.unsqueeze(0))
 
@@ -235,7 +239,7 @@ def residual_loss(albedo_gaussians : GaussianModel, shading_gaussians : Gaussian
 
     return loss, Ll1, Ll1depth, viewspace_point_tensor, visibility_filter, radii
 
-def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : OptimizationParams, pipe : PipelineParams, testing_iterations: list[int], saving_iterations : list[int], gaussians_list : list[GaussianModel], tb_writer = None, gaussian_average : bool = False):
+def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : OptimizationParams, pipe : PipelineParams, testing_iterations: list[int], saving_iterations : list[int], gaussians_list : list[GaussianModel], tb_writer = None, gaussian_average : bool = False, down_weight: bool = False):
 
     first_iter = 0
     progress_bar = tqdm(range(first_iter, iterations), desc="Training progress")
@@ -284,7 +288,10 @@ def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : 
             lambda_col = 0.3 if iteration < 3000 else 0.1
             loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = shading_loss(albedo_gaussians, shading_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim, lambda_col)
         else:
-            loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = albedo_loss(albedo_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim, gaussian_average=gaussian_average, target_albedo=target_albedo)
+            if down_weight:
+                loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = albedo_loss(albedo_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim, gaussian_average=gaussian_average, target_albedo=target_albedo, use_weight_map=down_weight, scene=scene)
+            else:
+                loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = albedo_loss(albedo_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim, gaussian_average=gaussian_average, target_albedo=target_albedo, use_weight_map=down_weight)
 
         loss.backward()
 
@@ -400,7 +407,7 @@ def training(dataset : ModelParams, opt : OptimizationParams, pipe : PipelinePar
         viewer.set_residual_gaussians(residual_gaussians)
             
     scene.gaussians = residual_gaussians
-    training_loop(scene, opt.residual_iterations, dataset, opt, pipe, testing_iterations, saving_iterations, gaussians_list=[albedo_gaussians, shading_gaussians, residual_gaussians], tb_writer=tb_writer)
+    training_loop(scene, opt.residual_iterations, dataset, opt, pipe, testing_iterations, saving_iterations, gaussians_list=[albedo_gaussians, shading_gaussians, residual_gaussians], tb_writer=tb_writer, down_weight=down_weight)
 
 
 def prepare_output_and_logger(args):    
