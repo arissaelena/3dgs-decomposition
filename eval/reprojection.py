@@ -4,7 +4,7 @@ from data.prepare_hypersim import ray_depth_to_planar_z
 import numpy as np
 import cv2
 from colmap_reader import scale_intrinsics
-from loaders import get_depth_path
+from loaders import get_depth_path, get_gt_depth_path, load_depth
 import os
 
 def reproject_view(cam_src: dict, cam_tgt: dict, depth_src: np.ndarray, depth_tgt: np.ndarray, albedo_tgt: np.ndarray, occ_thresh: float = 0.05, edge_thresh: float = 0.05) -> tuple[np.ndarray, np.ndarray]:
@@ -65,27 +65,30 @@ def reproject_view(cam_src: dict, cam_tgt: dict, depth_src: np.ndarray, depth_tg
     return warped_albedo, M
 
 
-def covisible_pairs(root: str, dataset: str, scene: str, cams: list[dict], change: list[int] = [2, 8], min_overlap: float = 0.1) -> dict [int, list[tuple[int, int]]]:
+def covisible_pairs(root: str, dataset: str, scene: str, cams: list[dict], predictor: str, change: list[int] = [2, 8], min_overlap: float = 0.1, use_gt_depth: bool = False, thresh: float = 0.12) -> dict[int, list[tuple[int, int]]]:
     depths = {}
-    if dataset == "hypersim":
-        thresh = 0.05 # can be stricter because the depths are synthetic
-    else:
-        thresh = 0.12
+    depth_fn = get_gt_depth_path if use_gt_depth else get_depth_path
 
     for i, cam in enumerate(cams):
-        p = get_depth_path(root, dataset, scene, cam)
+        p = depth_fn(root, dataset, scene, cam, predictor)
         if os.path.exists(p):
-            depths[i] = np.load(p).astype(np.float32).squeeze()
-    
+            depths[i] = load_depth(p, (cam["h"], cam["w"]))
+            
     pairs_by_diff = {}
     for d in change:
         pairs_by_diff[d] = []
         for i in range(len(cams) - d):
-            j = i+d
+            j = i + d
             if i in depths and j in depths:
                 h, w = depths[j].shape
                 dummy = np.zeros((h, w, 3), dtype=np.float32) # placeholder in right shape
-                _, mask = reproject_view(cams[i], cams[j], depths[i], depths[j], dummy, thresh, thresh)
+                if not use_gt_depth:
+                    occ_thresh = 0.15 
+                    edge_thresh = 0.30 
+                else:
+                    occ_thresh = thresh
+                    edge_thresh = thresh
+                _, mask = reproject_view(cams[i], cams[j], depths[i], depths[j], dummy, occ_thresh, edge_thresh)
                 if mask.mean() >= min_overlap:
                     pairs_by_diff[d].append((i, j))
 

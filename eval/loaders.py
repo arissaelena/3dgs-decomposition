@@ -21,13 +21,36 @@ def get_albedo_path(root: str, method: str, dataset: str, scene: str, cam: dict)
 
     return os.path.join(albedo_dir, f"{stems[0]}.npy")
 
-
-def get_depth_path(root: str, dataset: str, scene: str, cam: dict) -> str:
+def get_depth_path(root: str, dataset: str, scene: str, cam: dict, predictor: str) -> str:
     if dataset == "hypersim":
+        depth_dirs = [os.path.join(root, "eval", "depth_cache", predictor, "hypersim", scene)]
+        depth_dirs.append(os.path.join(root, "eval", "depth_cache", "hypersim", scene))
+    else:
+        depth_dirs = [os.path.join(root, "eval", "depth_cache", predictor, "mipnerf360", scene)]
+        depth_dirs.extend([os.path.join(root, "eval", "depth_cache", "mipnerf360", scene), os.path.join(root, "data", "mipnerf360", scene, "depths")])
+
+    stems = [cam["colmap_stem"]]
+    if cam["colmap_stem"].endswith(".color"):
+        stems.append(cam["colmap_stem"][: -len(".color")])
+
+    for depth_dir in depth_dirs:
+        for stem in stems:
+            for ext in (".npy", ".png", ".hdf5", ".h5"):
+                depth_path = os.path.join(depth_dir, f"{stem}{ext}")
+                if os.path.exists(depth_path):
+                    return depth_path
+
+    depth_path = os.path.join(depth_dirs[0], f"{cam['colmap_stem']}.npy")
+    return depth_path
+
+
+def get_gt_depth_path(root: str, dataset: str, scene: str, cam: dict, predictor: str) -> str:
+    if dataset == "hypersim":
+        # doesn't use the predictor splat but just hypersim gt
         base = os.path.join(root, "data", "hypersim", "colmap_format", scene, "cam_00")
         depth_dirs = [os.path.join(base, "ground_truth", "depth_z"), os.path.join(base, "depths"), os.path.join(base, "depth")]
     else:
-        depth_dirs = [os.path.join(root, "eval", "depth_cache", "mipnerf360", scene), os.path.join(root, "data", "mipnerf360", scene, "depths")]
+        return get_depth_path(root, dataset, scene, cam, predictor)
 
     stems = [cam["colmap_stem"]]
     if cam["colmap_stem"].endswith(".color"):
