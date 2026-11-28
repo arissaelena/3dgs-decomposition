@@ -34,6 +34,7 @@ from utils.image_utils import psnr, linear_to_inverse
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
 from gaussian_viewer import GaussianViewer
+from fusion.gaussian_average import compute_gaussian_albedo_targets
 
 from scene import Camera
 from enum import Enum
@@ -111,7 +112,7 @@ def init_residual(albedo_gaussians : GaussianModel, shading_gaussians : Gaussian
 
     return residual_gaussians
 
-def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weight : float, pipe : PipelineParams, background : torch.Tensor, lambda_dssim : float, clamp_albedo : bool = True, weight_map=None):
+def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weight : float, pipe : PipelineParams, background : torch.Tensor, lambda_dssim : float, clamp_albedo : bool = True, weight_map=None, gaussian_average=False, target_albedo=None):
     render_pkg = render(viewpoint, albedo_gaussians, pipe, background)
     image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
@@ -129,6 +130,11 @@ def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weig
     ssim_value = fused_ssim(image.unsqueeze(0), gt_image.unsqueeze(0))
 
     loss = (1.0 - lambda_dssim) * Ll1 + lambda_dssim * (1.0 - ssim_value) + 0.1 * torch.mean(albedo_gaussians.get_scaling)
+
+    # integrate extension 3
+    if gaussian_average and target_albedo is not None:
+        current_rgb = torch.sigmoid(albedo_gaussians._features_dc)[:, 0, :]
+        loss += 0.1 * torch.abs(current_rgb - target_albedo).mean()
 
     # depth regularization
     Ll1depth_pure = 0.0
@@ -223,7 +229,7 @@ def residual_loss(albedo_gaussians : GaussianModel, shading_gaussians : Gaussian
 
     return loss, Ll1, Ll1depth, viewspace_point_tensor, visibility_filter, radii
 
-def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : OptimizationParams, pipe : PipelineParams, testing_iterations: list[int], saving_iterations : list[int], gaussians_list : list[GaussianModel], tb_writer = None):
+def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : OptimizationParams, pipe : PipelineParams, testing_iterations: list[int], saving_iterations : list[int], gaussians_list : list[GaussianModel], tb_writer = None, gaussian_average : bool = False):
 
     first_iter = 0
     progress_bar = tqdm(range(first_iter, iterations), desc="Training progress")
@@ -247,6 +253,8 @@ def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : 
     
     if len(gaussians_list) > 2:
         residual_gaussians = gaussians_list[2]
+
+    target_albedo = None
     
     for iteration in range(first_iter, iterations + 1):
 
@@ -259,6 +267,10 @@ def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : 
         gaussians_list[active_id].update_learning_rate(iteration)
         bg = torch.rand((3), device="cuda")
 
+        if gaussian_average and (target_albedo is None or target_albedo.shape[0] != albedo_gaussians.get_xyz.shape[0] or iteration % 100 == 0):
+            with torch.no_grad():
+                target_albedo = compute_gaussian_albedo_targets(albedo_gaussians, scene.getTrainCameras())
+
         if residual_gaussians is not None:
             lambda_col = 0.3 if iteration < 3000 else 0.1
             loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = residual_loss(albedo_gaussians, shading_gaussians, residual_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim, lambda_col)
@@ -266,7 +278,7 @@ def training_loop(scene : Scene, iterations : int, dataset : ModelParams, opt : 
             lambda_col = 0.3 if iteration < 3000 else 0.1
             loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = shading_loss(albedo_gaussians, shading_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim, lambda_col)
         else:
-            loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = albedo_loss(albedo_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim)
+            loss, Ll1, depth_loss, viewspace_point_tensor, visibility_filter, radii = albedo_loss(albedo_gaussians, viewpoint_cam, depth_l1_weight(iteration), pipe, bg, opt.lambda_dssim, gaussian_average=gaussian_average, target_albedo=target_albedo)
 
         loss.backward()
 
@@ -357,7 +369,7 @@ def training(dataset : ModelParams, opt : OptimizationParams, pipe : PipelinePar
         viewer_thd = Thread(target=viewer.run, daemon=True)
         viewer_thd.start()
     
-    training_loop(scene, opt.albedo_iterations, dataset, opt, pipe, testing_iterations, saving_iterations, gaussians_list=[albedo_gaussians], tb_writer=tb_writer)
+    training_loop(scene, opt.albedo_iterations, dataset, opt, pipe, testing_iterations, saving_iterations, gaussians_list=[albedo_gaussians], tb_writer=tb_writer, gaussian_average=gaussian_average)
     albedo_gaussians.freeze_params()
     albedo_gaussians.optimizer = None
 
