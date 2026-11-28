@@ -130,7 +130,7 @@ def albedo_loss(albedo_gaussians : GaussianModel, viewpoint : Camera, depth_weig
     # when pixels disagree, we can use the weight map to down weight pixels where the views disagree
 
     if use_weight_map and scene:
-        weight_map = e2.generate_confidence_maps(viewpoint, scene, albedo_gaussians)
+        weight_map = e2.generate_confidence_maps(viewpoint, scene, albedo_gaussians, pipe, background)
         Ll1 = (torch.abs(image - gt_image) * weight_map).mean()
     elif use_weight_map and not scene:
         print("Pass scene to get a weight map")
